@@ -1,0 +1,82 @@
+# Config for archpkgdb-fetcher
+
+[fetcher]
+root = "./data"
+dirfmt = "%Y%m%d-%H%M-$arch"
+cache = "./data/cache.json"
+archs = ["x86_64"]
+repos = [
+    "core",
+    "core-staging",
+    "core-testing",
+    "extra",
+    "extra-staging",
+    "extra-testing",
+    "gnome-unstable",
+    "kde-unstable",
+    "multilib",
+    "multilib-staging",
+    "multilib-testing",
+]
+user_agent = "archpkgdb-fetcher/0.1 (+http://archpkg.org/fetcher)"
+
+[[servers]]
+url = "https://ftp.rnl.tecnico.ulisboa.pt/pub/archlinux/$repo/os/$arch"
+role = "current"
+
+[[servers]]
+url = "https://fastly.mirror.pkgbuild.com/$repo/os/$arch"
+role = "current"
+
+[[servers]]
+url = "https://pub.hjalves.dev/archlinux-archive/repos/$year/$month/$day/$repo/os/$arch"
+role = "archive"
+
+[[servers]]
+url = "https://archive.archlinux.org/repos/$year/$month/$day/$repo/os/$arch"
+role = "archive"
+
+# Logging configuration
+
+[logging]
+disable_existing_loggers = false
+version = 1
+
+[logging.root]
+handlers = ["console"]
+level = "DEBUG"
+
+[logging.formatters.colored]
+"()" = "colorlog.ColoredFormatter"
+datefmt = "%b %d %H:%M:%S"
+format = """%(asctime)s.%(msecs)03d %(log_color)s[%(levelname)4.4s]%(reset)s \
+    %(name_log_color)s%(name)s%(reset)s: %(message)s"""
+
+[logging.handlers.console]
+class = "logging.StreamHandler"
+formatter = "colored"
+level = "DEBUG"
+stream = "ext://sys.stdout"
+
+[logging.loggers.archpkgdb_fetcher]
+level = "DEBUG"
+
+[logging.loggers.requests]
+level = "DEBUG"
+
+[logging.loggers.urllib3]
+level = "DEBUG"
+
+[logging.formatters.colored.log_colors]
+DEBUG = "bold_cyan"
+INFO = "bold_green"
+WARNING = "bold_yellow"
+ERROR = "bold_red"
+CRITICAL = "bold_purple"
+
+[logging.formatters.colored.secondary_log_colors.name]
+DEBUG = "bold_white"
+INFO = "bold_white"
+ERROR = "bold_yellow"
+WARNING = "bold_red"
+CRITICAL = "bold_purple"
