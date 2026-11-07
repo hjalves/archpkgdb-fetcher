@@ -173,6 +173,7 @@ def handle_server_repository(
         "arch": arch,
         "check_time": check_time,
         "fetch_time": cache.get("fetch_time"),
+        "fetch_path": cache.get("fetch_path"),
         "etag": etag,
         "last_modified": last_modified,
         **updated,
@@ -229,6 +230,7 @@ def fetch_repository_file(
 
         result["status"] = "fetched"
         result["fetch_time"] = now()
+        result["fetch_path"] = str(target_path)
 
         etag_header = response.headers.get("ETag")
         if etag_header:
