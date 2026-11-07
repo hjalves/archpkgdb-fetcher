@@ -1,6 +1,7 @@
 import datetime
 import json
 from pathlib import Path
+from string import Template
 
 
 def datetime_is_aware(value: datetime.datetime) -> bool:
@@ -102,3 +103,18 @@ def merge_cache(
                 merged[server] = {}
             merged[server][repo] = repo_cache
     return merged
+
+
+def interpolate_path(
+    template: str, arch: str, repo: str, date: datetime.date | None
+) -> str:
+    # Interpolate the template with the provided arch, repo, and date values
+    interpolated = Template(template).substitute(
+        arch=arch,
+        repo=repo,
+        year=f"{date.year:04d}" if date else "",
+        month=f"{date.month:02d}" if date else "",
+        day=f"{date.day:02d}" if date else "",
+    )
+    # Interpolate date and time placeholders using the current time (example: %Y%m%d)
+    return now().strftime(interpolated)

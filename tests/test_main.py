@@ -1,4 +1,5 @@
 import importlib
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -54,22 +55,30 @@ def test_main_passes_loaded_configuration_and_force_flag(
         "fetcher": {"root": "data"},
         "servers": [{"url": "https://example.test", "role": "current"}],
     }
-    fetch_calls: list[tuple[dict, list[dict], bool]] = []
+    fetch_calls: list[tuple[dict, list[dict], bool, date | None]] = []
     monkeypatch.setattr(
         main_module,
         "parse_args",
-        lambda: SimpleNamespace(config="config.toml", force=True),
+        lambda: SimpleNamespace(config="config.toml", force=True, archive_date=None),
     )
     monkeypatch.setattr(main_module, "load_config", lambda _path: config)
     monkeypatch.setattr(main_module, "setup_logging", lambda _config: None)
+
+    def fake_fetcher(
+        fetcher_config: dict,
+        servers: list[dict],
+        force: bool,
+        archive_date: date | None,
+    ) -> dict:
+        fetch_calls.append((fetcher_config, servers, force, archive_date))
+        return {}
+
     monkeypatch.setattr(
         main_module,
         "fetcher",
-        lambda fetcher_config, servers, force: fetch_calls.append(
-            (fetcher_config, servers, force)
-        ),
+        fake_fetcher,
     )
 
     main_module.main()
 
-    assert fetch_calls == [(config["fetcher"], config["servers"], True)]
+    assert fetch_calls == [(config["fetcher"], config["servers"], True, None)]

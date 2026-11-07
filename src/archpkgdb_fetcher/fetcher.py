@@ -1,14 +1,20 @@
 import logging
 import os
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from email.utils import format_datetime, parsedate_to_datetime
 from pathlib import Path
-from string import Template
 from typing import Any
 
 import requests
 
-from .utils import datetime_is_aware, load_cache, merge_cache, now, save_cache
+from .utils import (
+    datetime_is_aware,
+    interpolate_path,
+    load_cache,
+    merge_cache,
+    now,
+    save_cache,
+)
 
 log = logging.getLogger(__name__)
 
@@ -17,7 +23,8 @@ def fetcher(
     fetcher_config: dict[str, Any],
     servers_config: list[dict[str, Any]],
     force: bool = False,
-) -> None:
+    archive_date: date | None = None,
+) -> dict[str, dict]:
     """
     Fetch all repositories based on the provided configuration.
 
@@ -25,60 +32,59 @@ def fetcher(
         fetcher_config (dict[str, Any]): Configuration for the fetcher.
         servers_config (list[dict[str, Any]]): List of server configurations.
         force (bool): Force fetching of repository files even if they are up-to-date.
+        archive_date (date | None): The date of the archive to fetch. If None, fetch the current repositories.
     """
     archs = fetcher_config["archs"]
     repos = fetcher_config["repos"]
-    root = fetcher_config["root"]
-    path = fetcher_config["path"]
     cache_file = fetcher_config["cache"]
     user_agent = fetcher_config["user_agent"]
 
-    servers = [s["url"] for s in servers_config if s["role"] == "current"]
+    role = "archive" if archive_date else "current"
+    path = fetcher_config[role]
+    servers = [s["url"] for s in servers_config if s["role"] == role]
 
-    log.info("Starting fetcher with archs: %s and repos: %s", archs, repos)
-    log.info("Target root directory: %s", root)
+    log.info("Starting fetcher with archs: %s, repos: %s, role: %s", archs, repos, role)
+    if archive_date:
+        log.info("Fetching archive for date: %s", archive_date)
+    if force:
+        log.info("Force fetching is enabled")
 
+    if archive_date and archive_date > date.today():
+        raise ValueError(f"Archive date cannot be in the future: {archive_date}")
     if not servers:
-        raise ValueError("No servers with role 'current' found")
+        raise ValueError(f"No servers with role '{role}' found")
     if not archs:
         raise ValueError("No architectures specified")
     if not repos:
         raise ValueError("No repositories specified")
-    if not Path(root).is_dir():
-        raise ValueError(f"Root directory does not exist or is not a directory: {root}")
 
-    if force:
-        log.info("Force fetching is enabled")
+    if force or archive_date:
         caches = {}
     else:
         caches = load_cache(cache_file)
 
-    updated_caches = fetch_repos(archs, repos, servers, root, path, caches, user_agent)
-    if force:
-        # If force is enabled, reload the existing cache to merge with updated caches
-        caches = load_cache(cache_file)
-    save_cache(cache_file, merge_cache(caches, updated_caches))
-    report(updated_caches)
+    updated_caches = fetch_repos(
+        archs, repos, servers, path, caches, user_agent, archive_date
+    )
+    if not archive_date:
+        # Only update the cache for the current repositories, not for archive fetches
+        if force:
+            # If force is enabled, reload the existing cache to merge with updated caches
+            caches = load_cache(cache_file)
+        save_cache(cache_file, merge_cache(caches, updated_caches))
 
-
-def report(caches: dict[str, dict]) -> None:
-    for server, server_cache in caches.items():
-        log.info("Server: %s", server)
-        for repo_key, repo_cache in server_cache.items():
-            log.info("- Repo: %s, Status: %s", repo_key, repo_cache.get("status"))
+    return updated_caches
 
 
 def fetch_repos(
     archs: list[str],
     repos: list[str],
     servers: list[str],
-    root: str | Path,
     path: str,
     caches: dict[str, dict],
     user_agent: str,
+    archive_date: date | None = None,
 ) -> dict[str, dict]:
-    root = Path(root)
-    old_server_caches = caches
     server_caches = {}
 
     session = requests.Session()
@@ -87,12 +93,11 @@ def fetch_repos(
     for arch in archs:
         # TODO: Implement server selection logic based on availability, priority, etc.
         server = servers[0]
-        old_server_cache = old_server_caches.get(server, {})
+        old_server_cache = caches.get(server, {})
         server_cache = {}
 
         for repo in repos:
-            template_path = Template(path).substitute(arch=arch, repo=repo)
-            target_path = root / Path(now().strftime(template_path))
+            target_path = Path(interpolate_path(path, arch, repo, archive_date))
             parent_dir = target_path.parent
 
             try:
@@ -100,7 +105,13 @@ def fetch_repos(
                 cache_key = f"{repo}/{arch}"
                 cache = old_server_cache.get(cache_key, {})
                 server_cache[cache_key] = handle_server_repository(
-                    session, cache, arch, repo, server, target_path
+                    session,
+                    cache,
+                    arch,
+                    repo,
+                    server,
+                    target_path,
+                    archive_date,
                 )
 
             finally:
@@ -124,6 +135,7 @@ def handle_server_repository(
     repo: str,
     server: str,
     target_path: Path,
+    archive_date: date | None,
 ) -> dict[str, str | datetime | None]:
     etag_value = cache.get("etag")
     etag = etag_value if isinstance(etag_value, str) else None
@@ -138,7 +150,12 @@ def handle_server_repository(
     if last_modified is not None and not datetime_is_aware(last_modified):
         raise ValueError("Cached last_modified datetime is not timezone aware")
 
-    download_url = Template(server).substitute(arch=arch, repo=repo)
+    # If last_modified is not provided, use the file's modification time as a fallback
+    if not last_modified and target_path.exists():
+        log.debug("No last_modified provided, using file's mtime for %s", target_path)
+        last_modified = datetime.fromtimestamp(target_path.stat().st_mtime, tz=UTC)
+
+    download_url = interpolate_path(server, arch, repo, archive_date)
     download_url = download_url.rstrip("/") + f"/{repo}.db"
 
     check_time = now()
@@ -155,8 +172,8 @@ def handle_server_repository(
         "arch": arch,
         "check_time": check_time,
         "fetch_time": cache.get("fetch_time"),
-        "etag": cache.get("etag"),
-        "last_modified": cache.get("last_modified"),
+        "etag": etag,
+        "last_modified": last_modified,
         **updated,
     }
 

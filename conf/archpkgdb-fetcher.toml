@@ -1,8 +1,8 @@
 # Config for archpkgdb-fetcher
 
 [fetcher]
-root = "./data"
-path = "%Y%m%d/%Y%m%d-%H%M.$repo.$arch.db"
+current = "./data/%Y%m%d/%Y%m%d-%H%M.$repo.$arch.db"
+archive = "./data/archive/$year/$year$month$day/$year$month$day.$repo.$arch.db"
 cache = "./data/cache.json"
 archs = ["x86_64"]
 repos = [
@@ -17,6 +17,10 @@ repos = [
     "multilib",
     "multilib-staging",
     "multilib-testing",
+    # Disabled repositories
+    "community",
+    "community-staging",
+    "community-testing"
 ]
 user_agent = "archpkgdb-fetcher/0.1 (+http://archpkg.org/fetcher)"
 
@@ -29,12 +33,13 @@ url = "https://fastly.mirror.pkgbuild.com/$repo/os/$arch"
 role = "current"
 
 [[servers]]
-url = "https://pub.hjalves.dev/archlinux-archive/repos/$year/$month/$day/$repo/os/$arch"
+url = "https://archive.archlinux.org/repos/$year/$month/$day/$repo/os/$arch"
 role = "archive"
 
 [[servers]]
-url = "https://archive.archlinux.org/repos/$year/$month/$day/$repo/os/$arch"
+url = "https://pub.hjalves.dev/archlinux-archive/repos/$year/$month/$day/$repo/os/$arch"
 role = "archive"
+
 
 # Logging configuration
 

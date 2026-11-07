@@ -3,6 +3,7 @@ import logging
 import logging.config
 import os
 import tomllib
+from datetime import date
 from pathlib import Path
 
 from .fetcher import fetcher
@@ -16,7 +17,13 @@ def main() -> None:
     args = parse_args()
     config = load_config(args.config)
     setup_logging(config["logging"])
-    fetcher(config["fetcher"], config["servers"], force=args.force)
+    updated = fetcher(
+        config["fetcher"],
+        config["servers"],
+        force=args.force,
+        archive_date=args.archive_date,
+    )
+    report(updated)
 
 
 def parse_args() -> argparse.Namespace:
@@ -36,7 +43,14 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Force fetching of repository files even if they are up-to-date",
     )
+    parser.add_argument(
+        "-a",
+        "--archive-date",
+        type=date.fromisoformat,
+        help="The date of the archive to fetch (format: YYYY-MM-DD)",
+    )
     args = parser.parse_args()
+    print(args)
     return args
 
 
@@ -55,3 +69,15 @@ def setup_logging(logging_config: dict) -> None:
     logging.config.dictConfig(logging_config)
     logging.captureWarnings(True)
     log.debug("Logging has been configured")
+
+
+def report(caches: dict[str, dict]) -> None:
+    for server, server_cache in caches.items():
+        log.info("Server: %s", server)
+        for repo_key, repo_cache in server_cache.items():
+            log.info(
+                "- %s, Status: %s, Last Modified: %s",
+                repo_key,
+                repo_cache.get("status"),
+                repo_cache.get("last_modified"),
+            )

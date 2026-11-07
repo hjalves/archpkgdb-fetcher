@@ -152,8 +152,7 @@ def test_fetcher_rejects_missing_required_configuration(
     config = {
         "archs": archs,
         "repos": repos,
-        "root": str(tmp_path),
-        "path": "$repo/$arch.db",
+        "current": str(tmp_path / "$repo" / "$arch.db"),
         "cache": str(tmp_path / "cache.json"),
         "user_agent": "test",
     }
