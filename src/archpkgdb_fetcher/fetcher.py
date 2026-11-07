@@ -44,6 +44,7 @@ def fetcher(
     servers = [s["url"] for s in servers_config if s["role"] == role]
 
     log.info("Starting fetcher with archs: %s, repos: %s, role: %s", archs, repos, role)
+    log.info("Target path template: %s", path)
     if archive_date:
         log.info("Fetching archive for date: %s", archive_date)
     if force:

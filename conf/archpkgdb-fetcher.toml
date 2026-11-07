@@ -1,8 +1,8 @@
 # Config for archpkgdb-fetcher
 
 [fetcher]
-current = "./data/%Y%m%d/%Y%m%d-%H%M.$repo.$arch.db"
-archive = "./data/archive/$year/$year$month$day/$year$month$day.$repo.$arch.db"
+current = "./data/%Y-%m-%d/%Y%m%d-%H%M.$repo.$arch.db"
+archive = "./data/archive/$year/$year-$month-$day/$year$month$day.$repo.$arch.db"
 cache = "./data/cache.json"
 archs = ["x86_64"]
 repos = [

@@ -46,11 +46,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "-a",
         "--archive-date",
-        type=date.fromisoformat,
-        help="The date of the archive to fetch (format: YYYY-MM-DD)",
+        type=str,
+        help="The date of the archive to fetch (format: YYYY-MM-DD) or 'today'",
     )
     args = parser.parse_args()
-    print(args)
+    if args.archive_date == "today":
+        args.archive_date = date.today()
+    elif args.archive_date:
+        args.archive_date = date.fromisoformat(args.archive_date)
     return args
 
 
