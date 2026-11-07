@@ -2,7 +2,7 @@
 
 [fetcher]
 root = "./data"
-dirfmt = "%Y%m%d-%H%M-$arch"
+path = "%Y%m%d/%Y%m%d-%H%M.$repo.$arch.db"
 cache = "./data/cache.json"
 archs = ["x86_64"]
 repos = [
@@ -46,6 +46,11 @@ version = 1
 handlers = ["console"]
 level = "DEBUG"
 
+[logging.formatters.plain]
+"()" = "logging.Formatter"
+datefmt = "%b %d %H:%M:%S"
+format = "%(asctime)s [%(levelname)4.4s] %(name)s: %(message)s"
+
 [logging.formatters.colored]
 "()" = "colorlog.ColoredFormatter"
 datefmt = "%b %d %H:%M:%S"
@@ -57,6 +62,14 @@ class = "logging.StreamHandler"
 formatter = "colored"
 level = "DEBUG"
 stream = "ext://sys.stdout"
+
+[logging.handlers.file]
+class = "logging.handlers.RotatingFileHandler"
+formatter = "plain"
+level = "DEBUG"
+filename = "archpkgdb-fetcher.log"
+maxBytes = 10485760
+backupCount = 5
 
 [logging.loggers.archpkgdb_fetcher]
 level = "DEBUG"

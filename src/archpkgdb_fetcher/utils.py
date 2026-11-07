@@ -77,7 +77,6 @@ def save_cache(cache_file: str | Path, data: dict[str, dict]) -> None:
         cache_file (str | Path): Path to the cache file.
         data (dict[str, dict]): The cache data to save.
     """
-    # Converts datetime objects to ISO format strings for JSON serialization
     cache_file = Path(cache_file)
     with open(cache_file, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4, default=json_serial)

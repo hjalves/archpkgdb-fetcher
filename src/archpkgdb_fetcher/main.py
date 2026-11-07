@@ -7,8 +7,7 @@ from pathlib import Path
 
 from .fetcher import fetcher
 
-BASE_DIR = Path(__file__).parent.parent.parent
-CONFIG = os.environ.get("CONFIG", str(BASE_DIR / "conf/archpkgdb-fetcher.toml"))
+CONFIG = os.environ.get("CONFIG", "conf/archpkgdb-fetcher.toml")
 
 log = logging.getLogger(__name__)
 
@@ -25,6 +24,7 @@ def parse_args() -> argparse.Namespace:
         description="Fetch updated db files for Arch Linux repos"
     )
     parser.add_argument(
+        "-c",
         "--config",
         type=str,
         default=CONFIG,
@@ -34,8 +34,11 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def load_config(config_path: str) -> dict:
+def load_config(config_path: str | Path) -> dict:
     log.debug("Loading configuration from %s", config_path)
+    config_path = Path(config_path)
+    if not config_path.exists():
+        raise FileNotFoundError(f"Configuration file not found: {config_path}")
     with open(config_path, "rb") as f:
         config = tomllib.load(f)
     # TODO: Validate and process the configuration as needed

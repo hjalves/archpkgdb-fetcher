@@ -24,7 +24,7 @@ def fetcher(fetcher_config: dict[str, Any], servers_config: list[dict]) -> None:
     archs = fetcher_config["archs"]
     repos = fetcher_config["repos"]
     root = fetcher_config["root"]
-    dirfmt = fetcher_config["dirfmt"]
+    path = fetcher_config["path"]
     cache_file = fetcher_config["cache"]
     user_agent = fetcher_config["user_agent"]
 
@@ -32,8 +32,19 @@ def fetcher(fetcher_config: dict[str, Any], servers_config: list[dict]) -> None:
     servers = [s["url"] for s in servers_config if s["role"] == "current"]
 
     log.info("Starting fetcher with archs: %s and repos: %s", archs, repos)
+    log.info("Target root directory: %s", root)
+
+    if not servers:
+        raise ValueError("No servers with role 'current' found")
+    if not archs:
+        raise ValueError("No architectures specified")
+    if not repos:
+        raise ValueError("No repositories specified")
+    if not Path(root).is_dir():
+        raise ValueError(f"Root directory does not exist or is not a directory: {root}")
+
     caches = load_cache(cache_file)
-    new_caches = fetch_repos(archs, repos, servers, root, dirfmt, caches, user_agent)
+    new_caches = fetch_repos(archs, repos, servers, root, path, caches, user_agent)
     save_cache(cache_file, merge_cache(caches, new_caches))
     report(new_caches)
 
@@ -50,7 +61,7 @@ def fetch_repos(
     repos: list[str],
     servers: list[str],
     root: str | Path,
-    dirfmt: str,
+    path: str,
     caches: dict[str, dict],
     user_agent: str,
 ) -> dict[str, dict]:
@@ -58,40 +69,38 @@ def fetch_repos(
     old_server_caches = caches
     server_caches = {}
 
+    session = requests.Session()
+    session.headers.update({"User-Agent": user_agent})
+
     for arch in archs:
-        dir_name = Template(dirfmt).substitute(arch=arch)
-        dir_name = now().strftime(dir_name)
+        # TODO: Implement server selection logic based on availability, priority, etc.
+        server = servers[0]
+        old_server_cache = old_server_caches.get(server, {})
+        server_cache = {}
 
-        session = requests.Session()
-        session.headers.update(
-            {"Accept": "application/octet-stream", "User-Agent": user_agent}
-        )
+        for repo in repos:
+            path = Template(path).substitute(arch=arch, repo=repo)
+            target_path = root / Path(now().strftime(path))
+            parent_dir = target_path.parent
 
-        target_dir = root / dir_name
-        try:
-            target_dir.mkdir(parents=True, exist_ok=True)
-            # TODO: Implement server selection logic based on availability, priority, etc.
-            server = servers[0]
-            old_server_cache = old_server_caches.get(server, {})
-            server_cache = {}
-
-            for repo in repos:
+            try:
+                parent_dir.mkdir(parents=True, exist_ok=True)
                 cache_key = f"{repo}/{arch}"
                 cache = old_server_cache.get(cache_key, {})
-                result = handle_server_repository(
-                    session, cache, arch, repo, server, target_dir
+                server_cache[cache_key] = handle_server_repository(
+                    session, cache, arch, repo, server, target_path
                 )
-                server_cache[cache_key] = result
+
+            finally:
+                # check if there's .tmp files and remove them
+                for tmp_file in parent_dir.glob("*.tmp"):
+                    tmp_file.unlink()
+                # check if directory is empty and remove it if it is
+                # TODO: we might want to recursively remove empty parent dirs as well
+                if not any(parent_dir.iterdir()):
+                    parent_dir.rmdir()
 
             server_caches[server] = server_cache
-
-        finally:
-            # check if there's .tmp files and remove them
-            for tmp_file in target_dir.glob("*.tmp"):
-                tmp_file.unlink()
-            # check if directory is empty and remove it if it is
-            if not any(target_dir.iterdir()):
-                target_dir.rmdir()
 
     return server_caches
 
@@ -102,7 +111,7 @@ def handle_server_repository(
     arch: str,
     repo: str,
     server: str,
-    target_dir: Path,
+    target_path: Path,
 ) -> dict[str, str | datetime | None]:
     etag_value = cache.get("etag")
     etag = etag_value if isinstance(etag_value, str) else None
@@ -114,11 +123,11 @@ def handle_server_repository(
         if last_modified_iso
         else None
     )
-    assert last_modified is None or datetime_is_aware(last_modified)
+    if last_modified is not None and not datetime_is_aware(last_modified):
+        raise ValueError("Cached last_modified datetime is not timezone aware")
 
     download_url = Template(server).substitute(arch=arch, repo=repo)
     download_url = download_url.rstrip("/") + f"/{repo}.db"
-    target_path = target_dir / f"{repo}.db"
 
     check_time = now()
     try:
@@ -201,9 +210,8 @@ def fetch_repository_file(
         last_modified_header = response.headers.get("Last-Modified")
         if last_modified_header:
             last_modified = parsedate_to_datetime(last_modified_header)
-            assert datetime_is_aware(last_modified), (
-                "Last-Modified header is not timezone aware"
-            )
+            if not datetime_is_aware(last_modified):
+                raise ValueError("Last-Modified header is not timezone aware")
             result["last_modified"] = last_modified
             os.utime(
                 target_path, (last_modified.timestamp(), last_modified.timestamp())

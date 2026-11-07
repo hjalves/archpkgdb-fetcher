@@ -48,8 +48,8 @@ needs.
 The `[fetcher]` section controls:
 
 - `root`: directory where database snapshots are stored.
-- `dirfmt`: snapshot directory format. The example uses `$arch` as a
-  placeholder and `strftime` directives for the current UTC time.
+- `path`: output path format. The example uses `$repo` and `$arch` as
+  placeholders and `strftime` directives for the current UTC time.
 - `cache`: path to the JSON file that stores validators and fetch results.
 - `archs` and `repos`: architectures and repositories to fetch.
 - `user_agent`: HTTP User-Agent sent with requests.

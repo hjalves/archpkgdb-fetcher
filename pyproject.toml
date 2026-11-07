@@ -27,7 +27,6 @@ dev = [
 [tool.ruff]
 target-version = "py314"
 line-length = 88
-extend-exclude = ["ign/"]
 
 [tool.ruff.lint]
 extend-select = ["ANN"]
