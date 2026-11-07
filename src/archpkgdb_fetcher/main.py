@@ -16,7 +16,7 @@ def main() -> None:
     args = parse_args()
     config = load_config(args.config)
     setup_logging(config["logging"])
-    fetcher(config["fetcher"], config["servers"])
+    fetcher(config["fetcher"], config["servers"], force=args.force)
 
 
 def parse_args() -> argparse.Namespace:
@@ -29,6 +29,12 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default=CONFIG,
         help="Path to the configuration file (default: %(default)s)",
+    )
+    parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help="Force fetching of repository files even if they are up-to-date",
     )
     args = parser.parse_args()
     return args

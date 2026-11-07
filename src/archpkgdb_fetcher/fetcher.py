@@ -13,13 +13,18 @@ from .utils import datetime_is_aware, load_cache, merge_cache, now, save_cache
 log = logging.getLogger(__name__)
 
 
-def fetcher(fetcher_config: dict[str, Any], servers_config: list[dict]) -> None:
+def fetcher(
+    fetcher_config: dict[str, Any],
+    servers_config: list[dict[str, Any]],
+    force: bool = False,
+) -> None:
     """
     Fetch all repositories based on the provided configuration.
 
     Args:
         fetcher_config (dict[str, Any]): Configuration for the fetcher.
         servers_config (list[dict[str, Any]]): List of server configurations.
+        force (bool): Force fetching of repository files even if they are up-to-date.
     """
     archs = fetcher_config["archs"]
     repos = fetcher_config["repos"]
@@ -28,7 +33,6 @@ def fetcher(fetcher_config: dict[str, Any], servers_config: list[dict]) -> None:
     cache_file = fetcher_config["cache"]
     user_agent = fetcher_config["user_agent"]
 
-    # Select servers with the role "current"
     servers = [s["url"] for s in servers_config if s["role"] == "current"]
 
     log.info("Starting fetcher with archs: %s and repos: %s", archs, repos)
@@ -43,10 +47,18 @@ def fetcher(fetcher_config: dict[str, Any], servers_config: list[dict]) -> None:
     if not Path(root).is_dir():
         raise ValueError(f"Root directory does not exist or is not a directory: {root}")
 
-    caches = load_cache(cache_file)
-    new_caches = fetch_repos(archs, repos, servers, root, path, caches, user_agent)
-    save_cache(cache_file, merge_cache(caches, new_caches))
-    report(new_caches)
+    if force:
+        log.info("Force fetching is enabled")
+        caches = {}
+    else:
+        caches = load_cache(cache_file)
+
+    updated_caches = fetch_repos(archs, repos, servers, root, path, caches, user_agent)
+    if force:
+        # If force is enabled, reload the existing cache to merge with updated caches
+        caches = load_cache(cache_file)
+    save_cache(cache_file, merge_cache(caches, updated_caches))
+    report(updated_caches)
 
 
 def report(caches: dict[str, dict]) -> None:
@@ -79,8 +91,8 @@ def fetch_repos(
         server_cache = {}
 
         for repo in repos:
-            path = Template(path).substitute(arch=arch, repo=repo)
-            target_path = root / Path(now().strftime(path))
+            template_path = Template(path).substitute(arch=arch, repo=repo)
+            target_path = root / Path(now().strftime(template_path))
             parent_dir = target_path.parent
 
             try:
@@ -172,19 +184,17 @@ def fetch_repository_file(
 
         if not response.ok:
             log.error("Failed to fetch %s: HTTP %s", download_url, response.status_code)
-            # Read the response body to release the connection
+            # Read the response body to keep the connection reusable
             _ = response.content
             result["status"] = f"failed ({response.status_code})"
             return result
 
         if response.status_code == 304:
             log.debug("%s not modified since last fetch", download_url)
-            # Read the response body to release the connection
             _ = response.content
             result["status"] = "not_modified"
             return result
 
-        # Check if the response contains the expected content type
         content_type = response.headers.get("Content-Type", "")
         if "application/octet-stream" not in content_type:
             log.error("Unexpected content type for %s: %s", download_url, content_type)
@@ -192,12 +202,11 @@ def fetch_repository_file(
             result["status"] = f"failed (unexpected content type: {content_type})"
             return result
 
-        log.debug("Fetching repository file from URL: %s", download_url)
+        log.debug("Fetching file from URL %s to %s", download_url, target_path)
         with open(tmp_path, "wb") as f:
             for chunk in response.iter_content(chunk_size=8192):
                 if chunk:
                     f.write(chunk)
-
         os.replace(tmp_path, target_path)
 
         result["status"] = "fetched"
