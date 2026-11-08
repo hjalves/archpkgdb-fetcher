@@ -12,6 +12,9 @@ from typing import Any
 from .config import default_config_path, load_config, setup_logging, version
 from .utils import iter_files, json_serial, sha256sum
 
+type PackageMetadata = dict[str, int | str | list[str]]
+
+
 DESC_INT_KEYS = ("builddate", "csize", "isize")
 DESC_LIST_KEYS = (
     "conflicts",
@@ -41,7 +44,7 @@ DESC_STR_KEYS = (
 log = logging.getLogger(__name__)
 
 
-def parse_desc(contents: str) -> dict[str, int | str | list[str]]:
+def parse_desc(contents: str) -> PackageMetadata:
     """
     Parse the content of a desc file and return it as a structured dictionary.
 
@@ -49,7 +52,7 @@ def parse_desc(contents: str) -> dict[str, int | str | list[str]]:
     Each key is enclosed in percent signs (e.g., %NAME%) and is followed by its value on
     the next line. The value can span multiple lines until the next key is encountered.
     """
-    result: dict[str, int | str | list[str]] = {}
+    result: PackageMetadata = {}
     for block in contents.split("\n\n"):
         if block:
             header, _, body = block.partition("\n")
@@ -72,7 +75,7 @@ def parse_desc(contents: str) -> dict[str, int | str | list[str]]:
 
 
 @lru_cache
-def read_pkg_db(file_path: str | Path) -> dict[str, dict[str, int | str | list[str]]]:
+def read_pkg_db(file_path: str | Path) -> dict[str, PackageMetadata]:
     """
     Read the package database from a .db (tar.gz) file and return it as a dictionary.
 
@@ -97,33 +100,35 @@ def read_pkg_db(file_path: str | Path) -> dict[str, dict[str, int | str | list[s
 
 
 def compute_changes(
-    old_db: dict[str, dict[str, int | str | list[str]]],
-    new_db: dict[str, dict[str, int | str | list[str]]],
-) -> tuple[list[dict[str, int | str | list[str]]], list[str]]:
+    old_db: dict[str, PackageMetadata],
+    new_db: dict[str, PackageMetadata],
+) -> tuple[list[PackageMetadata], list[PackageMetadata], list[str]]:
     """
     Compute the changes between two package databases.
 
     """
-    additions: list[dict[str, int | str | list[str]]] = []
-    deletions: list[str] = []  # List of package ids that were removed
+    added: list[PackageMetadata] = []
+    replaced: list[PackageMetadata] = []
+    removed: list[str] = []  # List of package ids that were removed
 
     for pkg, new_desc in new_db.items():
         if pkg not in old_db:
-            additions.append({"pkg": pkg, **new_desc})
+            added.append({"pkg": pkg, **new_desc})
         else:
-            # Raise an error if the package sha256 hash has changed
+            # Check if the package has been updated by comparing the sha256 hash
             old_desc = old_db[pkg]
             if old_desc["sha256sum"] != new_desc["sha256sum"]:
-                raise ValueError(
+                log.warning(
                     f"Package {pkg} has changed sha256 hash from "
                     f"{old_desc['sha256sum']} to {new_desc['sha256sum']}"
                 )
+                replaced.append({"pkg": pkg, **new_desc})
 
     for pkg in old_db:
         if pkg not in new_db:
-            deletions.append(pkg)
+            removed.append(pkg)
 
-    return additions, deletions
+    return added, replaced, removed
 
 
 def diff_pkg_db(previous_file: str | Path, current_file: str | Path) -> dict[str, Any]:
@@ -145,12 +150,13 @@ def diff_pkg_db(previous_file: str | Path, current_file: str | Path) -> dict[str
     previous["sha256sum"] = sha256sum(previous_file)
     current["sha256sum"] = sha256sum(current_file)
 
-    additions, deletions = compute_changes(previous_db, current_db)
+    added, replaced, removed = compute_changes(previous_db, current_db)
     return {
         "previous": previous,
         "current": current,
-        "additions": additions,
-        "deletions": deletions,
+        "added": added,
+        "replaced": replaced,
+        "removed": removed,
     }
 
 
