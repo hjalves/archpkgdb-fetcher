@@ -1,15 +1,13 @@
 import logging
 import logging.config
 import tomllib
+from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
-BASE_DIR = Path(__file__).parent.parent.parent
-
 CONFIG_SEARCH_PATHS = [
     Path.cwd() / "config.toml",
-    Path.home() / ".config" / "archpkgdb-fetcher" / "archpkgdb-fetcher.toml",
-    BASE_DIR / "conf" / "archpkgdb-fetcher.toml",
+    Path.home() / ".config" / "archpkgdb-fetcher.toml",
 ]
 
 log = logging.getLogger(__name__)
@@ -26,9 +24,10 @@ def version() -> str:
 
 def default_config_path() -> Path:
     for path in CONFIG_SEARCH_PATHS:
-        if path.exists():
+        if path.exists() and path.is_file():
             return path
-    raise FileNotFoundError("No configuration file found in search paths")
+    default_path = files("archpkgdb_fetcher.data").joinpath("defaults.toml")
+    return Path(str(default_path))
 
 
 def load_config(config_path: str | Path) -> dict[str, Any]:

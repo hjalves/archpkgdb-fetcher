@@ -10,7 +10,7 @@ wheels/
 .venv/
 
 # Data and log files
-data/
+/data/
 *.log
 *.db
 *.zst
