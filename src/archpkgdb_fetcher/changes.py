@@ -117,10 +117,10 @@ def compute_changes(
         else:
             # Check if the package has been updated by comparing the sha256 hash
             old_desc = old_db[pkg]
-            if old_desc["sha256sum"] != new_desc["sha256sum"]:
+            if old_desc.get("sha256sum") != new_desc.get("sha256sum"):
                 log.warning(
                     f"Package {pkg} has changed sha256 hash from "
-                    f"{old_desc['sha256sum']} to {new_desc['sha256sum']}"
+                    f"{old_desc.get('sha256sum')} to {new_desc.get('sha256sum')}"
                 )
                 replaced.append({"pkg": pkg, **new_desc})
 
