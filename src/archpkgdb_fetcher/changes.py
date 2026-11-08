@@ -113,10 +113,10 @@ def compute_changes(
         else:
             # Raise an error if the package sha256 hash has changed
             old_desc = old_db[pkg]
-            if old_desc["sha256"] != new_desc["sha256"]:
+            if old_desc["sha256sum"] != new_desc["sha256sum"]:
                 raise ValueError(
                     f"Package {pkg} has changed sha256 hash from "
-                    f"{old_desc['sha256']} to {new_desc['sha256']}"
+                    f"{old_desc['sha256sum']} to {new_desc['sha256sum']}"
                 )
 
     for pkg in old_db:
