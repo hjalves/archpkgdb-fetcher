@@ -1,6 +1,6 @@
 [project]
 name = "archpkgdb-fetcher"
-version = "0.1.0"
+version = "0.1.1"
 description = "Fetch updated db files for Arch Linux repos"
 readme = "README.md"
 authors = [
@@ -14,6 +14,7 @@ dependencies = [
 
 [project.scripts]
 archpkgdb-fetcher = "archpkgdb_fetcher:main"
+archpkgdb-compute-changes = "archpkgdb_fetcher.changes:main"
 
 [build-system]
 requires = ["uv_build>=0.13.7,<0.14.0"]
@@ -21,6 +22,7 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "mypy>=2.4.1",
     "pytest>=9.2.0",
     "ruff>=0.17.4",
 ]
@@ -31,3 +33,8 @@ line-length = 88
 
 [tool.ruff.lint]
 extend-select = ["ANN"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+warn_return_any = true

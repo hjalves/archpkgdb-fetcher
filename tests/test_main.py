@@ -2,6 +2,8 @@ import importlib
 from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -15,8 +17,9 @@ def test_parse_args_uses_default_config_and_disables_force(
 
     args = main_module.parse_args()
 
-    assert args.config == main_module.CONFIG
+    assert args.config == main_module.DEFAULT_CONFIG
     assert args.force is False
+    assert args.log_config == "default"
 
 
 def test_parse_args_accepts_config_and_force(
@@ -55,21 +58,29 @@ def test_main_passes_loaded_configuration_and_force_flag(
         "fetcher": {"root": "data"},
         "servers": [{"url": "https://example.test", "role": "current"}],
     }
-    fetch_calls: list[tuple[dict, list[dict], bool, date | None]] = []
+    fetch_calls: list[
+        tuple[dict[str, Any], list[dict[str, Any]], bool, date | None]
+    ] = []
     monkeypatch.setattr(
         main_module,
         "parse_args",
-        lambda: SimpleNamespace(config="config.toml", force=True, archive_date=None),
+        lambda: SimpleNamespace(
+            config="config.toml",
+            force=True,
+            archive_date=None,
+            log_config="custom",
+        ),
     )
     monkeypatch.setattr(main_module, "load_config", lambda _path: config)
-    monkeypatch.setattr(main_module, "setup_logging", lambda _config: None)
+    setup_logging = MagicMock()
+    monkeypatch.setattr(main_module, "setup_logging", setup_logging)
 
     def fake_fetcher(
-        fetcher_config: dict,
-        servers: list[dict],
+        fetcher_config: dict[str, Any],
+        servers: list[dict[str, Any]],
         force: bool,
         archive_date: date | None,
-    ) -> dict:
+    ) -> dict[str, dict[str, Any]]:
         fetch_calls.append((fetcher_config, servers, force, archive_date))
         return {}
 
@@ -81,4 +92,5 @@ def test_main_passes_loaded_configuration_and_force_flag(
 
     main_module.main()
 
+    setup_logging.assert_called_once_with(config["logging"], key="custom")
     assert fetch_calls == [(config["fetcher"], config["servers"], True, None)]

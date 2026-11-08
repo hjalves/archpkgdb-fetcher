@@ -1,7 +1,9 @@
 import datetime
+import hashlib
 import json
 from pathlib import Path
 from string import Template
+from typing import Any
 
 
 def datetime_is_aware(value: datetime.datetime) -> bool:
@@ -33,25 +35,19 @@ def now() -> datetime.datetime:
     return datetime.datetime.now(datetime.UTC)
 
 
-def json_serial(obj: dict) -> str:
+def json_serial(obj: object) -> str:
     """
     JSON serializer for objects not serializable by default.
 
     Currently, it only supports datetime.datetime objects, which are
     converted to ISO 8601 formatted strings.
-
-    Args:
-        obj (dict): The object to serialize.
-
-    Returns:
-        str: The JSON-serializable string representation of the object.
     """
     if isinstance(obj, datetime.datetime):
         return obj.isoformat()
     raise TypeError("Type not serializable")
 
 
-def load_cache(cache_file: str | Path) -> dict[str, dict]:
+def load_cache(cache_file: str | Path) -> dict[str, dict[str, Any]]:
     """
     Load the cache from a JSON file.
 
@@ -61,22 +57,31 @@ def load_cache(cache_file: str | Path) -> dict[str, dict]:
         cache_file (str | Path): Path to the cache file.
 
     Returns:
-        dict[str, dict]: The loaded cache data.
+        dict[str, dict[str, Any]]: The loaded cache data.
     """
     cache_file = Path(cache_file)
     if not cache_file.exists():
         return {}
     with open(cache_file, "r", encoding="utf-8") as f:
-        return json.load(f)
+        data: Any = json.load(f)
+    if (
+        not isinstance(data, dict)
+        or not all(isinstance(v, dict) for v in data.values())
+        or not all(isinstance(k, str) for k in data)
+    ):
+        raise ValueError(
+            "Cache must be a JSON object containing objects with string keys"
+        )
+    return data
 
 
-def save_cache(cache_file: str | Path, data: dict[str, dict]) -> None:
+def save_cache(cache_file: str | Path, data: dict[str, dict[str, Any]]) -> None:
     """
     Save the cache to a JSON file.
 
     Args:
         cache_file (str | Path): Path to the cache file.
-        data (dict[str, dict]): The cache data to save.
+        data (dict[str, dict[str, Any]]): The cache data to save.
     """
     cache_file = Path(cache_file)
     with open(cache_file, "w", encoding="utf-8") as f:
@@ -84,17 +89,17 @@ def save_cache(cache_file: str | Path, data: dict[str, dict]) -> None:
 
 
 def merge_cache(
-    old_cache: dict[str, dict], new_cache: dict[str, dict]
-) -> dict[str, dict]:
+    old_cache: dict[str, dict[str, Any]], new_cache: dict[str, dict[str, Any]]
+) -> dict[str, dict[str, Any]]:
     """
     Merge two cache dictionaries.
 
     Args:
-        old_cache (dict[str, dict]): The original cache.
-        new_cache (dict[str, dict]): The new cache to merge into the original.
+        old_cache (dict[str, dict[str, Any]]): The original cache.
+        new_cache (dict[str, dict[str, Any]]): The new cache to merge into the original.
 
     Returns:
-        dict[str, dict]: The merged cache.
+        dict[str, dict[str, Any]]: The merged cache.
     """
     merged = old_cache.copy()
     for server, server_cache in new_cache.items():
@@ -118,3 +123,18 @@ def interpolate_path(
     )
     # Interpolate date and time placeholders using the current time (example: %Y%m%d)
     return now().strftime(interpolated)
+
+
+def sha256sum(file_path: str | Path) -> str:
+    """
+    Compute the SHA256 checksum of a file.
+
+    Args:
+        file_path (str | Path): Path to the file.
+
+    Returns:
+        str: The SHA256 checksum of the file.
+    """
+    file_path = Path(file_path)
+    with open(file_path, "rb") as f:
+        return hashlib.file_digest(f, "sha256").hexdigest()

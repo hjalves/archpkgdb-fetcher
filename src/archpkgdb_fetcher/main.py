@@ -1,14 +1,10 @@
 import argparse
 import logging
-import logging.config
-import os
-import tomllib
 from datetime import date
-from pathlib import Path
+from typing import Any
 
+from .config import DEFAULT_CONFIG, load_config, setup_logging, version
 from .fetcher import fetcher
-
-CONFIG = os.environ.get("CONFIG", "conf/archpkgdb-fetcher.toml")
 
 log = logging.getLogger(__name__)
 
@@ -16,26 +12,48 @@ log = logging.getLogger(__name__)
 def main() -> None:
     args = parse_args()
     config = load_config(args.config)
-    setup_logging(config["logging"])
-    updated = fetcher(
-        config["fetcher"],
-        config["servers"],
-        force=args.force,
-        archive_date=args.archive_date,
+    logging_config = config["logging"]
+    setup_logging(logging_config, key=args.log_config)
+    log.info(
+        "Starting archpkgdb-fetcher %s with arguments: %s", version(), str(args)[10:-1]
     )
-    report(updated)
+    try:
+        updated = fetcher(
+            config["fetcher"],
+            config["servers"],
+            force=args.force,
+            archive_date=args.archive_date,
+        )
+        report(updated)
+    except Exception as e:
+        log.critical("An error occurred: %s", e, exc_info=True)
+        raise
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Fetch updated db files for Arch Linux repos"
+        description="Fetch updated db files for Arch Linux repos",
+    )
+    parser.add_argument(
+        "-V",
+        "--version",
+        action="version",
+        version=f"%(prog)s {version()}",
+        help="Show the version of archpkgdb-fetcher",
     )
     parser.add_argument(
         "-c",
         "--config",
         type=str,
-        default=CONFIG,
+        default=DEFAULT_CONFIG,
         help="Path to the configuration file (default: %(default)s)",
+    )
+    parser.add_argument(
+        "-l",
+        "--log-config",
+        type=str,
+        default="default",
+        help="Logging configuration to use (default: %(default)s)",
     )
     parser.add_argument(
         "-f",
@@ -57,29 +75,12 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def load_config(config_path: str | Path) -> dict:
-    log.debug("Loading configuration from %s", config_path)
-    config_path = Path(config_path)
-    if not config_path.exists():
-        raise FileNotFoundError(f"Configuration file not found: {config_path}")
-    with open(config_path, "rb") as f:
-        config = tomllib.load(f)
-    # TODO: Validate and process the configuration as needed
-    return config
-
-
-def setup_logging(logging_config: dict) -> None:
-    logging.config.dictConfig(logging_config)
-    logging.captureWarnings(True)
-    log.debug("Logging has been configured")
-
-
-def report(caches: dict[str, dict]) -> None:
+def report(caches: dict[str, dict[str, Any]]) -> None:
     for server, server_cache in caches.items():
         log.info("Server: %s", server)
         for repo_key, repo_cache in server_cache.items():
             log.info(
-                "- %s, Status: %s, Last Modified: %s",
+                "> %s, %s, last modified: %s",
                 repo_key,
                 repo_cache.get("status"),
                 repo_cache.get("last_modified"),

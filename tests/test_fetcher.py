@@ -52,6 +52,7 @@ def test_fetch_repository_file_writes_content_and_returns_metadata(
     assert result == {
         "status": "fetched",
         "fetch_time": fetched_at,
+        "fetch_path": str(target_path),
         "etag": '"abc123"',
         "last_modified": datetime(2015, 10, 21, 7, 28, tzinfo=UTC),
     }

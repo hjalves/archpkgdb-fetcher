@@ -12,3 +12,5 @@ wheels/
 # Data and log files
 data/
 *.log
+*.db
+*.zst

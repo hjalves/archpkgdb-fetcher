@@ -24,7 +24,7 @@ def fetcher(
     servers_config: list[dict[str, Any]],
     force: bool = False,
     archive_date: date | None = None,
-) -> dict[str, dict]:
+) -> dict[str, dict[str, Any]]:
     """
     Fetch all repositories based on the provided configuration.
 
@@ -82,10 +82,10 @@ def fetch_repos(
     repos: list[str],
     servers: list[str],
     path: str,
-    caches: dict[str, dict],
+    caches: dict[str, dict[str, Any]],
     user_agent: str,
     archive_date: date | None = None,
-) -> dict[str, dict]:
+) -> dict[str, dict[str, Any]]:
     server_caches = {}
 
     session = requests.Session()
