@@ -78,6 +78,7 @@ def read_pkg_db(file_path: str | Path) -> dict[str, dict[str, int | str | list[s
     The dictionary keys are the package names, and the values are the parsed desc contents.
     """
     packages = {}
+    log.debug("Reading package database from %s", file_path)
     with tarfile.open(file_path, "r:gz") as tar:
         for member in tar.getmembers():
             if member.isfile() and os.path.basename(member.name) == "desc":
@@ -85,7 +86,11 @@ def read_pkg_db(file_path: str | Path) -> dict[str, dict[str, int | str | list[s
                 reader = tar.extractfile(member)
                 assert reader is not None, "Failed to extract desc file"
                 contents = reader.read().decode("utf-8")
-                packages[package] = parse_desc(contents)
+                try:
+                    packages[package] = parse_desc(contents)
+                except AssertionError as e:
+                    log.error("Failed to parse desc for package %s: %s", package, e)
+                    packages[package] = {}
     return packages
 
 
@@ -204,6 +209,20 @@ def generate_command(root: str | Path, force: bool = False) -> bool:
     return True
 
 
+def check_command(file: str | Path) -> bool:
+    try:
+        packages = read_pkg_db(file)
+        log.info("Parsed %d packages from %s", len(packages), file)
+    except (EOFError, tarfile.TarError) as e:
+        log.error(
+            "Failed to read package database %s due to error: %s",
+            file,
+            e,
+        )
+        return False
+    return True
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Compute changes between two package databases"
@@ -229,7 +248,7 @@ def parse_args() -> argparse.Namespace:
         default="default",
         help="Logging configuration to use (default: %(default)s)",
     )
-    command = parser.add_subparsers(dest="command")
+    command = parser.add_subparsers(dest="command", required=True)
 
     diff_parser = command.add_parser(
         "diff", help="Compute changes between two package databases"
@@ -262,6 +281,11 @@ def parse_args() -> argparse.Namespace:
         help="Force recomputation of the generated databases even if they exist",
     )
 
+    check_parser = command.add_parser(
+        "check", help="Check if the package database can be parsed successfully"
+    )
+    check_parser.add_argument("file", help="Path to the package database file to parse")
+
     args = parser.parse_args()
     return args
 
@@ -278,6 +302,8 @@ def main() -> bool | None:
         )
     elif args.command == "generate":
         return generate_command(args.root, force=args.force)
+    elif args.command == "check":
+        return check_command(args.file)
     else:
         log.error("No command specified")
         return False
