@@ -4,10 +4,12 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
+BASE_DIR = Path(__file__).parent.parent.parent
+
 CONFIG_SEARCH_PATHS = [
     Path.cwd() / "config.toml",
-    Path.cwd() / "conf" / "archpkgdb-fetcher.toml",
     Path.home() / ".config" / "archpkgdb-fetcher" / "archpkgdb-fetcher.toml",
+    BASE_DIR / "conf" / "archpkgdb-fetcher.toml",
 ]
 
 log = logging.getLogger(__name__)
