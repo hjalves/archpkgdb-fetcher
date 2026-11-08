@@ -9,7 +9,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from .config import default_config_path, load_config, setup_logging, version
+from .config import find_config_file, load_config, setup_logging, version
 from .utils import iter_files, json_serial, sha256sum
 
 type PackageMetadata = dict[str, int | str | list[str]]
@@ -256,7 +256,7 @@ def parse_args() -> argparse.Namespace:
         "-c",
         "--config",
         type=str,
-        default=default_config_path(),
+        default=find_config_file(),
         help="Path to the configuration file (default: %(default)s)",
     )
     parser.add_argument(

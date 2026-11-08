@@ -142,6 +142,16 @@ def sha256sum(file_path: str | Path) -> str:
 
 
 def iter_files(root: str | Path, pattern: str) -> Iterator[Path]:
+    """
+    Iterate over files in a directory matching a pattern.
+
+    Args:
+        root (str | Path): The root directory to search.
+        pattern (str): The glob pattern to match files against.
+
+    Yields:
+        Path: Paths to the matching files.
+    """
     root = Path(root)
     if not root.exists():
         raise FileNotFoundError(f"{root} does not exist")
@@ -151,3 +161,23 @@ def iter_files(root: str | Path, pattern: str) -> Iterator[Path]:
     for path in sorted(root.rglob(pattern)):
         if path.is_file():
             yield path
+
+
+def merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """
+    Recursively merge two dictionaries.
+
+    Args:
+        base (dict[str, Any]): The base dictionary.
+        override (dict[str, Any]): The dictionary with overriding values.
+
+    Returns:
+        dict[str, Any]: The merged dictionary.
+    """
+    result = base.copy()
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = merge_dicts(result[key], value)
+        else:
+            result[key] = value
+    return result

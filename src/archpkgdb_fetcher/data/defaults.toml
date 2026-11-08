@@ -23,6 +23,7 @@ repos = [
     "community-testing"
 ]
 user_agent = "archpkgdb-fetcher/0.1 (+http://archpkg.org/fetcher)"
+generate_diff = true
 
 [[servers]]
 url = "https://ftp.rnl.tecnico.ulisboa.pt/pub/archlinux/$repo/os/$arch"
@@ -36,14 +37,30 @@ role = "current"
 url = "https://archive.archlinux.org/repos/$year/$month/$day/$repo/os/$arch"
 role = "archive"
 
-# Logging configuration
+# Common logging configuration
+
+[logging.common]
+version = 1
+
+[logging.common.root]
+level = "DEBUG"
+
+[logging.common.loggers.archpkgdb_fetcher]
+level = "DEBUG"
+
+[logging.common.loggers.requests]
+level = "DEBUG"
+
+[logging.common.loggers.urllib3]
+level = "DEBUG"
+
+# Default logging configuration
 
 [logging.default]
-version = 1
+extends = "common"
 
 [logging.default.root]
 handlers = ["console"]
-level = "DEBUG"
 
 [logging.default.formatters.colored]
 "()" = "colorlog.ColoredFormatter"
@@ -56,15 +73,6 @@ class = "logging.StreamHandler"
 formatter = "colored"
 level = "DEBUG"
 stream = "ext://sys.stdout"
-
-[logging.default.loggers.archpkgdb_fetcher]
-level = "DEBUG"
-
-[logging.default.loggers.requests]
-level = "DEBUG"
-
-[logging.default.loggers.urllib3]
-level = "DEBUG"
 
 [logging.default.formatters.colored.log_colors]
 DEBUG = "bold_cyan"
@@ -83,11 +91,10 @@ CRITICAL = "bold_purple"
 # Logging configuration for scheduled tasks (run with -l scheduled)
 
 [logging.scheduled]
-version = 1
+extends = "common"
 
 [logging.scheduled.root]
 handlers = ["file"]
-level = "DEBUG"
 
 [logging.scheduled.formatters.plain]
 "()" = "logging.Formatter"
@@ -101,12 +108,3 @@ level = "DEBUG"
 filename = "archpkgdb-fetcher.log"
 maxBytes = 10485760
 backupCount = 5
-
-[logging.scheduled.loggers.archpkgdb_fetcher]
-level = "DEBUG"
-
-[logging.scheduled.loggers.requests]
-level = "DEBUG"
-
-[logging.scheduled.loggers.urllib3]
-level = "INFO"

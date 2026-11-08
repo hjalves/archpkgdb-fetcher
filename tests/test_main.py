@@ -17,7 +17,7 @@ def test_parse_args_uses_default_config_and_disables_force(
 
     args = main_module.parse_args()
 
-    assert args.config == main_module.default_config_path()
+    assert args.config == main_module.find_config_file()
     assert args.force is False
     assert args.log_config == "default"
 

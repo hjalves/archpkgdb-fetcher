@@ -1,9 +1,13 @@
 import logging
 import logging.config
 import tomllib
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as pkg_version
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
+
+from .utils import merge_dicts
 
 CONFIG_SEARCH_PATHS = [
     Path.cwd() / "config.toml",
@@ -15,23 +19,24 @@ log = logging.getLogger(__name__)
 
 def version() -> str:
     try:
-        from importlib.metadata import version as pkg_version
-
         return pkg_version("archpkgdb-fetcher")
-    except ImportError:
+    except PackageNotFoundError:
         return "unknown"
 
 
-def default_config_path() -> Path:
+def find_config_file() -> Path | None:
     for path in CONFIG_SEARCH_PATHS:
         if path.exists() and path.is_file():
             return path
-    default_path = files("archpkgdb_fetcher.data").joinpath("defaults.toml")
-    return Path(str(default_path))
+    return None
 
 
-def load_config(config_path: str | Path) -> dict[str, Any]:
-    log.debug("Loading configuration from %s", config_path)
+def load_config(config_path: str | Path | None) -> dict[str, Any]:
+    if config_path is None:
+        resource = files("archpkgdb_fetcher.data").joinpath("defaults.toml")
+        config = tomllib.loads(resource.read_text(encoding="utf-8"))
+        return config
+
     config_path = Path(config_path)
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
@@ -44,6 +49,18 @@ def load_config(config_path: str | Path) -> dict[str, Any]:
 def setup_logging(logging_config: dict[str, Any], key: str) -> None:
     if key not in logging_config:
         raise ValueError(f"Logging configuration '{key}' not found in the config file")
+
+    # Deal with extends
+    if "extends" in logging_config[key]:
+        base_key = logging_config[key].pop("extends")
+        if base_key not in logging_config:
+            raise ValueError(
+                f"Base logging configuration '{base_key}' not found in the config file"
+            )
+        logging_config[key] = merge_dicts(logging_config[base_key], logging_config[key])
+
     logging.config.dictConfig(logging_config[key])
     logging.captureWarnings(True)
-    log.debug("Logging has been configured")
+    # Log the root logger's handlers for debugging purposes
+    handlers = ", ".join(str(h) for h in logging.getLogger().handlers)
+    log.debug("Logging has been configured with key '%s', handlers: %s", key, handlers)

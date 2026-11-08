@@ -3,7 +3,7 @@ import logging
 from datetime import date
 from typing import Any
 
-from .config import default_config_path, load_config, setup_logging, version
+from .config import find_config_file, load_config, setup_logging, version
 from .fetcher import fetcher
 
 log = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ def parse_args() -> argparse.Namespace:
         "-c",
         "--config",
         type=str,
-        default=default_config_path(),
+        default=find_config_file(),
         help="Path to the configuration file (default: %(default)s)",
     )
     parser.add_argument(

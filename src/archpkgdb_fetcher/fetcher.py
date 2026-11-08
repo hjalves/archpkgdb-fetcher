@@ -7,6 +7,7 @@ from typing import Any
 
 import requests
 
+from .changes import diff_command
 from .utils import (
     datetime_is_aware,
     interpolate_path,
@@ -38,6 +39,7 @@ def fetcher(
     repos = fetcher_config["repos"]
     cache_file = fetcher_config["cache"]
     user_agent = fetcher_config["user_agent"]
+    generate_diff = fetcher_config.get("generate_diff", True)
 
     role = "archive" if archive_date else "current"
     path = fetcher_config[role]
@@ -64,8 +66,8 @@ def fetcher(
     else:
         caches = load_cache(cache_file)
 
-    updated_caches = fetch_repos(
-        archs, repos, servers, path, caches, user_agent, archive_date
+    updated_caches = fetch_repositories(
+        archs, repos, servers, path, caches, user_agent, archive_date, generate_diff
     )
     if not archive_date:
         # Only update the cache for the current repositories, not for archive fetches
@@ -77,7 +79,7 @@ def fetcher(
     return updated_caches
 
 
-def fetch_repos(
+def fetch_repositories(
     archs: list[str],
     repos: list[str],
     servers: list[str],
@@ -85,6 +87,7 @@ def fetch_repos(
     caches: dict[str, dict[str, Any]],
     user_agent: str,
     archive_date: date | None = None,
+    generate_diff: bool = True,
 ) -> dict[str, dict[str, Any]]:
     server_caches = {}
 
@@ -113,6 +116,7 @@ def fetch_repos(
                     server,
                     target_path,
                     archive_date,
+                    generate_diff,
                 )
 
             finally:
@@ -137,6 +141,7 @@ def handle_server_repository(
     server: str,
     target_path: Path,
     archive_date: date | None,
+    generate_diff: bool = True,
 ) -> dict[str, str | datetime | None]:
     etag_value = cache.get("etag")
     etag = etag_value if isinstance(etag_value, str) else None
@@ -164,6 +169,14 @@ def handle_server_repository(
         updated = fetch_repository_file(
             session, download_url, target_path, etag, last_modified
         )
+        # Compute diff_pkg_db if both the previous and current fetch paths are available
+        if generate_diff and updated.get("fetch_path") and cache.get("fetch_path"):
+            assert isinstance(cache["fetch_path"], str)
+            assert isinstance(updated["fetch_path"], str)
+            previous_path = cache["fetch_path"]
+            current_path = updated["fetch_path"]
+            diff_command(previous_path, current_path)
+
     except Exception:
         log.exception("Error fetching repository file %s", download_url)
         updated = {"status": "error"}
