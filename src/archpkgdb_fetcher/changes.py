@@ -5,11 +5,12 @@ import os
 import tarfile
 from compression import zstd
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from .config import DEFAULT_CONFIG, load_config, setup_logging, version
-from .utils import json_serial, sha256sum
+from .config import default_config_path, load_config, setup_logging, version
+from .utils import iter_files, json_serial, sha256sum
 
 DESC_INT_KEYS = ("builddate", "csize", "isize")
 DESC_LIST_KEYS = (
@@ -70,6 +71,7 @@ def parse_desc(contents: str) -> dict[str, int | str | list[str]]:
     return result
 
 
+@lru_cache
 def read_pkg_db(file_path: str | Path) -> dict[str, dict[str, int | str | list[str]]]:
     """
     Read the package database from a .db (tar.gz) file and return it as a dictionary.
@@ -108,6 +110,14 @@ def compute_changes(
     for pkg, new_desc in new_db.items():
         if pkg not in old_db:
             additions.append({"pkg": pkg, **new_desc})
+        else:
+            # Raise an error if the package sha256 hash has changed
+            old_desc = old_db[pkg]
+            if old_desc["sha256"] != new_desc["sha256"]:
+                raise ValueError(
+                    f"Package {pkg} has changed sha256 hash from "
+                    f"{old_desc['sha256']} to {new_desc['sha256']}"
+                )
 
     for pkg in old_db:
         if pkg not in new_db:
@@ -149,6 +159,7 @@ def diff_command(
     file2: str | Path,
     output_file: str | Path | None = None,
     force: bool = False,
+    dry_run: bool = False,
 ) -> bool:
     log.info("Computing diff between %s and %s", file1, file2)
     if output_file is None:
@@ -165,47 +176,48 @@ def diff_command(
         log.error("Failed to compute diff due to error: %s", e)
         return False
 
+    if dry_run:
+        log.info("Dry run enabled, not writing diff to %s", output_file)
+        return True
     log.info("Writing diff to %s", output_file)
     with zstd.open(output_file, "wt", level=6) as f:
         json.dump(changes, f, indent=2, default=json_serial, ensure_ascii=False)
     return True
 
 
-def generate_command(root: str | Path, force: bool = False) -> bool:
+def generate_command(
+    root: str | Path, force: bool = False, dry_run: bool = False
+) -> bool:
     # The archive has the layout: /YYYY/YYYY-MM-DD/YYMMDD.$repo.$arch.db
     # Walk through the archive and generate diffs for each package database
     last_repo_db: dict[str, Path] = {}
-    root = Path(root)
-    if not root.exists():
-        log.error("Archive root %s does not exist", root)
-        return False
 
     log.info("Generating diffs from archive at %s", root)
-    for year_dir in sorted(root.iterdir()):
-        if not year_dir.is_dir():
-            continue
-        for date_dir in sorted(year_dir.iterdir()):
-            if not date_dir.is_dir():
-                continue
-            for repo_db in sorted(date_dir.glob("*.db")):
-                _, repo, arch = repo_db.stem.split(".")
-                repo_key = f"{repo}.{arch}"
-                if repo_key in last_repo_db:
-                    success = diff_command(last_repo_db[repo_key], repo_db, force=force)
-                    if success:
-                        # Successfully computed diff, update the last seen repo database
-                        last_repo_db[repo_key] = repo_db
-                else:
-                    try:
-                        read_pkg_db(repo_db)
-                    except (EOFError, tarfile.TarError) as e:
-                        log.error(
-                            "Failed to read package database %s due to error: %s",
-                            repo_db,
-                            e,
-                        )
-                        continue
+    try:
+        for repo_db in iter_files(root, "*.db"):
+            _, repo, arch = repo_db.stem.split(".")
+            repo_key = f"{repo}.{arch}"
+            if repo_key in last_repo_db:
+                success = diff_command(
+                    last_repo_db[repo_key], repo_db, force=force, dry_run=dry_run
+                )
+                if success:
+                    # Successfully computed diff, update the last seen repo database
                     last_repo_db[repo_key] = repo_db
+            else:
+                try:
+                    read_pkg_db(repo_db)
+                except (EOFError, tarfile.TarError) as e:
+                    log.error(
+                        "Failed to read package database %s due to error: %s",
+                        repo_db,
+                        e,
+                    )
+                    continue
+                last_repo_db[repo_key] = repo_db
+    except Exception:
+        log.exception("Failed to generate diffs due to error")
+        return False
     return True
 
 
@@ -238,7 +250,7 @@ def parse_args() -> argparse.Namespace:
         "-c",
         "--config",
         type=str,
-        default=DEFAULT_CONFIG,
+        default=default_config_path(),
         help="Path to the configuration file (default: %(default)s)",
     )
     parser.add_argument(
@@ -267,6 +279,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Force recomputation of the diff even if it exists",
     )
+    diff_parser.add_argument(
+        "-d",
+        "--dry-run",
+        action="store_true",
+        help="Perform a dry run without making any changes",
+    )
 
     generate_parser = command.add_parser(
         "generate", help="Generate from the archive of package databases"
@@ -279,6 +297,12 @@ def parse_args() -> argparse.Namespace:
         "--force",
         action="store_true",
         help="Force recomputation of the generated databases even if they exist",
+    )
+    generate_parser.add_argument(
+        "-d",
+        "--dry-run",
+        action="store_true",
+        help="Perform a dry run without making any changes",
     )
 
     check_parser = command.add_parser(
@@ -298,10 +322,14 @@ def main() -> bool | None:
 
     if args.command == "diff":
         return diff_command(
-            args.file1, args.file2, output_file=args.output_file, force=args.force
+            args.file1,
+            args.file2,
+            output_file=args.output_file,
+            force=args.force,
+            dry_run=args.dry_run,
         )
     elif args.command == "generate":
-        return generate_command(args.root, force=args.force)
+        return generate_command(args.root, force=args.force, dry_run=args.dry_run)
     elif args.command == "check":
         return check_command(args.file)
     else:

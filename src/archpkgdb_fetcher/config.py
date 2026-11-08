@@ -1,11 +1,14 @@
 import logging
 import logging.config
-import os
 import tomllib
 from pathlib import Path
 from typing import Any
 
-DEFAULT_CONFIG = os.environ.get("CONFIG", "conf/archpkgdb-fetcher.toml")
+CONFIG_SEARCH_PATHS = [
+    Path.cwd() / "config.toml",
+    Path.cwd() / "conf" / "archpkgdb-fetcher.toml",
+    Path.home() / ".config" / "archpkgdb-fetcher" / "archpkgdb-fetcher.toml",
+]
 
 log = logging.getLogger(__name__)
 
@@ -17,6 +20,13 @@ def version() -> str:
         return pkg_version("archpkgdb-fetcher")
     except ImportError:
         return "unknown"
+
+
+def default_config_path() -> Path:
+    for path in CONFIG_SEARCH_PATHS:
+        if path.exists():
+            return path
+    raise FileNotFoundError("No configuration file found in search paths")
 
 
 def load_config(config_path: str | Path) -> dict[str, Any]:

@@ -1,6 +1,7 @@
 import datetime
 import hashlib
 import json
+from collections.abc import Iterator
 from pathlib import Path
 from string import Template
 from typing import Any
@@ -138,3 +139,15 @@ def sha256sum(file_path: str | Path) -> str:
     file_path = Path(file_path)
     with open(file_path, "rb") as f:
         return hashlib.file_digest(f, "sha256").hexdigest()
+
+
+def iter_files(root: str | Path, pattern: str) -> Iterator[Path]:
+    root = Path(root)
+    if not root.exists():
+        raise FileNotFoundError(f"{root} does not exist")
+    if not root.is_dir():
+        raise NotADirectoryError(f"{root} is not a directory")
+
+    for path in sorted(root.rglob(pattern)):
+        if path.is_file():
+            yield path
