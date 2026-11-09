@@ -59,6 +59,7 @@ def generate_index(directory: Path) -> None:
             json.dump(entries, file, indent=2, ensure_ascii=False)
             file.write("\n")
 
+        os.chmod(temporary, 0o644)
         os.replace(temporary, output)
     except BaseException:
         os.unlink(temporary)
