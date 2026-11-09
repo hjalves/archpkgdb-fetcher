@@ -32,13 +32,21 @@ def summarize_diff(diff: dict[str, Any]) -> dict[str, Any]:
     packages = {}
 
     for desc in added.values():
-        packages[desc["name"]] = [None, desc["version"]]
+        try:
+            packages[desc["name"]] = [None, desc["version"]]
+        except KeyError:
+            # This entry will be skipped due to missing information
+            log.warning("Missing name or version in added package")
 
     for desc in removed.values():
-        if desc["name"] in packages:
-            packages[desc["name"]][0] = desc["version"]
-        else:
-            packages[desc["name"]] = [desc["version"], None]
+        try:
+            if desc["name"] in packages:
+                packages[desc["name"]][0] = desc["version"]
+            else:
+                packages[desc["name"]] = [desc["version"], None]
+        except KeyError:
+            # This entry will be skipped due to missing information
+            log.warning("Missing name or version in removed package")
     return {"previous": previous, "current": current, "packages": packages}
 
 
@@ -85,7 +93,7 @@ def generate_summaries(
         }
         try:
             if summary["previous"]["sha256sum"] == summary["current"]["sha256sum"]:
-                log.debug("Skipping unchanged diff: %s", diff_file)
+                log.debug("Skipping empty diff: %s", diff_file)
                 continue
         except KeyError:
             log.warning("Missing sha256sum in diff: %s", diff_file)
@@ -147,7 +155,8 @@ def main() -> None:
     setup_logging(logging_config, key=args.log_config)
 
     root = args.directory.resolve()
-    log.debug("Root directory resolved to: %s", root)
+    if not root.exists() or not root.is_dir():
+        raise ValueError(f"Root directory does not exist or is not a directory: {root}")
 
     if args.recursive:
         # Find all parent directories containing .db.diff.json.zst files
