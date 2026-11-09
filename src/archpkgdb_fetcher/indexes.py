@@ -66,21 +66,7 @@ def generate_index(directory: Path) -> None:
         raise
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Recursively generate Nginx-compatible JSON directory indexes."
-    )
-    parser.add_argument(
-        "directory",
-        nargs="?",
-        type=Path,
-        default=Path("."),
-        help="Root directory (default: current directory)",
-    )
-    args = parser.parse_args()
-
-    root = args.directory.resolve()
-
+def generate_indexes(root: Path) -> None:
     for directory, subdirectories, _ in os.walk(root, topdown=False):
         path = Path(directory)
 
@@ -90,3 +76,17 @@ def main() -> None:
         ]
 
         generate_index(path)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Recursively generate Nginx-compatible JSON directory indexes."
+    )
+    parser.add_argument(
+        "directory", type=Path, help="Root directory for generating indexes"
+    )
+    args = parser.parse_args()
+
+    root = args.directory.resolve()
+
+    generate_indexes(root)

@@ -47,10 +47,14 @@ def test_save_and_load_cache_round_trip_datetimes(tmp_path: Path) -> None:
     save_cache(cache_file, cache)
 
     assert json.loads(cache_file.read_text(encoding="utf-8")) == {
-        "https://example.test": {"fetch_time": fetched_at.isoformat()}
+        "https://example.test": {
+            "fetch_time": fetched_at.isoformat().replace("+00:00", "Z")
+        }
     }
     assert load_cache(cache_file) == {
-        "https://example.test": {"fetch_time": fetched_at.isoformat()}
+        "https://example.test": {
+            "fetch_time": fetched_at.isoformat().replace("+00:00", "Z")
+        }
     }
 
 

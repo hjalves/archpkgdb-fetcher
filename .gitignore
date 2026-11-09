@@ -14,3 +14,10 @@ wheels/
 *.log
 *.db
 *.zst
+
+# Editor directories
+.vscode/
+
+# Lock and version files (maybe commit these later)
+uv.lock
+.python-version

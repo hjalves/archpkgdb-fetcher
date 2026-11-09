@@ -102,33 +102,38 @@ def read_pkg_db(file_path: str | Path) -> dict[str, PackageMetadata]:
 def compute_changes(
     old_db: dict[str, PackageMetadata],
     new_db: dict[str, PackageMetadata],
-) -> tuple[list[PackageMetadata], list[PackageMetadata], list[str]]:
+) -> tuple[dict[str, PackageMetadata], dict[str, PackageMetadata]]:
     """
     Compute the changes between two package databases.
 
     """
-    added: list[PackageMetadata] = []
-    replaced: list[PackageMetadata] = []
-    removed: list[str] = []  # List of package ids that were removed
+    added: dict[str, PackageMetadata] = {}
+    removed: dict[str, PackageMetadata] = {}
 
     for pkg, new_desc in new_db.items():
         if pkg not in old_db:
-            added.append({"pkg": pkg, **new_desc})
+            added[pkg] = new_desc
         else:
-            # Check if the package has been updated by comparing the sha256 hash
+            # Check if the package has been changed by comparing the sha256 hash
             old_desc = old_db[pkg]
             if old_desc.get("sha256sum") != new_desc.get("sha256sum"):
                 log.warning(
                     f"Package {pkg} has changed sha256 hash from "
                     f"{old_desc.get('sha256sum')} to {new_desc.get('sha256sum')}"
                 )
-                replaced.append({"pkg": pkg, **new_desc})
+                added[pkg] = new_desc
 
-    for pkg in old_db:
+    for pkg, desc in old_db.items():
         if pkg not in new_db:
-            removed.append(pkg)
+            removed[pkg] = {}
+            if "name" in desc:
+                removed[pkg]["name"] = desc["name"]
+            if "version" in desc:
+                removed[pkg]["version"] = desc["version"]
+            if "sha256sum" in desc:
+                removed[pkg]["sha256sum"] = desc["sha256sum"]
 
-    return added, replaced, removed
+    return added, removed
 
 
 def diff_pkg_db(previous_file: str | Path, current_file: str | Path) -> dict[str, Any]:
@@ -150,12 +155,11 @@ def diff_pkg_db(previous_file: str | Path, current_file: str | Path) -> dict[str
     previous["sha256sum"] = sha256sum(previous_file)
     current["sha256sum"] = sha256sum(current_file)
 
-    added, replaced, removed = compute_changes(previous_db, current_db)
+    added, removed = compute_changes(previous_db, current_db)
     return {
         "previous": previous,
         "current": current,
         "added": added,
-        "replaced": replaced,
         "removed": removed,
     }
 
