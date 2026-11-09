@@ -60,11 +60,17 @@ def generate_summaries(path: Path, date: str | None = None) -> None:
         # format: <timestamp>.<repo>.<arch>.db.diff.json.zst
         _, repo, arch, *_ = diff_file.stem.split(".")
         summary = {
-            "diff": diff_file.stem,
+            "diff": diff_file.name,
             "repo": repo,
             "arch": arch,
             **summarize_diff(read_diff(diff_file)),
         }
+        try:
+            if summary["previous"]["sha256sum"] == summary["current"]["sha256sum"]:
+                log.debug("Skipping unchanged diff: %s", diff_file)
+                continue
+        except KeyError:
+            log.warning("Missing sha256sum in diff: %s", diff_file)
         diffs.append(summary)
 
     if diffs:
@@ -72,7 +78,7 @@ def generate_summaries(path: Path, date: str | None = None) -> None:
 
         template = load_template("summary.html")
         output = render_template(template, {"data": json_summary, "date": date})
-        output_file = path / f"summary-{date}.html"
+        output_file = path / f"summary.html"
 
         log.info("Writing summary to %s", output_file)
         with open(output_file, "wt", encoding="utf-8") as output_stream:

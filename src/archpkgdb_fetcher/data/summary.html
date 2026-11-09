@@ -75,6 +75,9 @@
   </header>
   <div class="toolbar">
     <input id="search" type="search" placeholder="Search repository or package…" aria-label="Search repository or package">
+    <select id="repository-filter" aria-label="Filter by repository">
+      <option value="all">All repositories</option>
+    </select>
     <select id="filter" aria-label="Filter package changes">
       <option value="all">All changes</option>
       <option value="updated">Updated packages</option>
@@ -84,7 +87,7 @@
   </div>
   <div id="summary" class="summary"></div>
   <section id="repositories" aria-live="polite"></section>
-  <div id="empty" class="empty-state">No repositories or packages match your search.</div>
+  <div id="empty" class="empty-state">No repositories or packages match the selected filters.</div>
   <footer>“Added” means the package is absent from the previous snapshot; “Removed” means it is absent from the current snapshot.</footer>
 </main>
 
@@ -114,13 +117,25 @@ function packageRows(packages, filter) {
   }).filter(row => filter === "all" || row.status === filter);
 }
 
+function populateRepositoryFilter() {
+  const repositories = [...new Set(diffs.map(item => item.repo))].sort((a, b) => a.localeCompare(b));
+  repositories.forEach(repo => {
+    const option = document.createElement("option");
+    option.value = repo;
+    option.textContent = repo;
+    $("repository-filter").append(option);
+  });
+}
+
 function render() {
   const query = $("search").value.trim().toLowerCase();
+  const selectedRepo = $("repository-filter").value;
   const filter = $("filter").value;
   let totals = { added: 0, updated: 0, removed: 0 };
   let visibleRepos = 0;
 
   const cards = diffs.map((item) => {
+    if (selectedRepo !== "all" && item.repo !== selectedRepo) return "";
     const rows = packageRows(item.packages, filter).filter(row =>
       !query || [item.repo, item.arch, item.diff, row.name, row.previous, row.current]
         .some(value => value != null && String(value).toLowerCase().includes(query))
@@ -178,7 +193,9 @@ function render() {
     <span class="pill" style="color:var(--red)">${totals.removed} removed</span>`;
 }
 $("search").addEventListener("input", render);
+$("repository-filter").addEventListener("change", render);
 $("filter").addEventListener("change", render);
+populateRepositoryFilter();
 render();
 </script>
 

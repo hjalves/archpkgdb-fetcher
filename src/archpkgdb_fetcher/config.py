@@ -1,5 +1,6 @@
 import logging
 import logging.config
+import os
 import tomllib
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as pkg_version
@@ -25,9 +26,12 @@ def version() -> str:
 
 
 def find_config_file() -> Path | None:
+    env = os.getenv("ARCHPKGDB_CONFIG")
+    if env:
+        return Path(env).resolve()
     for path in CONFIG_SEARCH_PATHS:
         if path.exists() and path.is_file():
-            return path
+            return path.resolve()
     return None
 
 
