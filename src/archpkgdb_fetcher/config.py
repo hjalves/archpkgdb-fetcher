@@ -14,6 +14,7 @@ CONFIG_SEARCH_PATHS = [
     Path.cwd() / "config.toml",
     Path.home() / ".config" / "archpkgdb-fetcher.toml",
 ]
+LOG_CONFIG_KEY = os.getenv("ARCHPKGDB_LOG_CONFIG", "default")
 
 log = logging.getLogger(__name__)
 

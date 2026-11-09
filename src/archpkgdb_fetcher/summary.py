@@ -6,7 +6,13 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
-from .config import find_config_file, load_config, setup_logging, version
+from .config import (
+    LOG_CONFIG_KEY,
+    find_config_file,
+    load_config,
+    setup_logging,
+    version,
+)
 
 log = logging.getLogger(__name__)
 
@@ -48,10 +54,21 @@ def render_template(template: str, context: dict[str, Any]) -> str:
     return template
 
 
-def generate_summaries(path: Path, date: str | None = None) -> None:
+def generate_summaries(
+    path: Path, date: str | None = None, force: bool = False
+) -> None:
     # For now, assume date is the path name
     if date is None:
         date = path.name
+
+    # Check for a summary.html
+    if (path / "summary.html").exists():
+        # If summary.html mtime is >= directory mtime and force is not set, skip generating summaries
+        summary_mtime = (path / "summary.html").stat().st_mtime
+        dir_mtime = path.stat().st_mtime
+        if summary_mtime >= dir_mtime and not force:
+            log.debug("Skipping generation for %s as summary.html is up-to-date", path)
+            return
 
     log.debug("Generating summaries for path: %s, date: %s", path, date)
 
@@ -78,7 +95,7 @@ def generate_summaries(path: Path, date: str | None = None) -> None:
 
         template = load_template("summary.html")
         output = render_template(template, {"data": json_summary, "date": date})
-        output_file = path / f"summary.html"
+        output_file = path / "summary.html"
 
         log.info("Writing summary to %s", output_file)
         with open(output_file, "wt", encoding="utf-8") as output_stream:
@@ -107,7 +124,7 @@ def parse_args() -> argparse.Namespace:
         "-l",
         "--log-config",
         type=str,
-        default="default",
+        default=LOG_CONFIG_KEY,
         help="Logging configuration to use (default: %(default)s)",
     )
     parser.add_argument(
@@ -115,6 +132,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "-r", "--recursive", action="store_true", help="Recursively process directories"
+    )
+    parser.add_argument(
+        "-f", "--force", action="store_true", help="Force regeneration of summaries"
     )
     return parser.parse_args()
 
@@ -130,7 +150,8 @@ def main() -> None:
 
     if args.recursive:
         # Find all parent directories containing .db.diff.json.zst files
-        for subdir in {path.parent for path in root.rglob("*.db.diff.json.zst")}:
-            generate_summaries(subdir)
+        directories = {path.parent for path in root.rglob("*.db.diff.json.zst")}
+        for subdir in sorted(directories):
+            generate_summaries(subdir, force=args.force)
     else:
-        generate_summaries(root)
+        generate_summaries(root, force=args.force)

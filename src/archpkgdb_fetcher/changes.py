@@ -9,7 +9,13 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from .config import find_config_file, load_config, setup_logging, version
+from .config import (
+    LOG_CONFIG_KEY,
+    find_config_file,
+    load_config,
+    setup_logging,
+    version,
+)
 from .utils import iter_files, json_serial, sha256sum
 
 type PackageMetadata = dict[str, int | str | list[str]]
@@ -267,7 +273,7 @@ def parse_args() -> argparse.Namespace:
         "-l",
         "--log-config",
         type=str,
-        default="default",
+        default=LOG_CONFIG_KEY,
         help="Logging configuration to use (default: %(default)s)",
     )
     command = parser.add_subparsers(dest="command", required=True)
