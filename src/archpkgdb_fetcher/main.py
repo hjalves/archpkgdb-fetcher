@@ -3,7 +3,13 @@ import logging
 from datetime import date
 from typing import Any
 
-from .config import LOG_CONFIG_KEY, find_config_file, load_config, setup_logging, version
+from .config import (
+    LOG_CONFIG_KEY,
+    find_config_file,
+    load_config,
+    setup_logging,
+    version,
+)
 from .fetcher import fetcher
 
 log = logging.getLogger(__name__)

@@ -61,19 +61,20 @@ def generate_summaries(
     if date is None:
         date = path.name
 
-    # Check for a summary.html
+    diff_files = sorted(path.glob("*.db.diff.json.zst"))
+
+    # If summary.html exists and is up-to-date with respect to the diff files, skip gen
     if (path / "summary.html").exists():
-        # If summary.html mtime is >= directory mtime and force is not set, skip generating summaries
         summary_mtime = (path / "summary.html").stat().st_mtime
-        dir_mtime = path.stat().st_mtime
-        if summary_mtime >= dir_mtime and not force:
+        diff_mtime = max(f.stat().st_mtime for f in diff_files) if diff_files else 0
+        if summary_mtime >= diff_mtime and not force:
             log.debug("Skipping generation for %s as summary.html is up-to-date", path)
             return
 
     log.debug("Generating summaries for path: %s, date: %s", path, date)
 
     diffs = []
-    for diff_file in sorted(path.glob("*.db.diff.json.zst")):
+    for diff_file in diff_files:
         # format: <timestamp>.<repo>.<arch>.db.diff.json.zst
         _, repo, arch, *_ = diff_file.stem.split(".")
         summary = {
