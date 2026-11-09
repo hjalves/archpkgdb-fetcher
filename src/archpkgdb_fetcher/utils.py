@@ -44,7 +44,7 @@ def json_serial(obj: object) -> str:
     converted to ISO 8601 formatted strings.
     """
     if isinstance(obj, datetime.datetime):
-        return obj.isoformat()
+        return obj.isoformat().replace("+00:00", "Z")
     raise TypeError("Type not serializable")
 
 
