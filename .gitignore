@@ -21,3 +21,6 @@ wheels/
 # Lock and version files (maybe commit these later)
 uv.lock
 .python-version
+
+# Miscellaneous
+mockups/
